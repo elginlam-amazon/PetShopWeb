@@ -44,7 +44,7 @@ namespace PetShopWeb.Controllers
         {
             if (ModelState.IsValid)
             {
-                var result = await _signInManager.PasswordSignInAsync(loginmodel.Email, loginmodel.Password, loginmodel.RememberMe, false);
+                var result = await _signInManager.PasswordSignInAsync(loginmodel.Email!, loginmodel.Password!, loginmodel.RememberMe, false);
                 if (result.Succeeded)
                 {
                     if (!string.IsNullOrEmpty(returnUrl))
@@ -80,7 +80,7 @@ namespace PetShopWeb.Controllers
             if (ModelState.IsValid)
             {
                 var user = new IdentityUser { UserName = registermodel.Email, Email = registermodel.Email };
-                var result = await _userManager.CreateAsync(user, registermodel.Password);
+                var result = await _userManager.CreateAsync(user, registermodel.Password!);
 
                 if (result.Succeeded)
                 {
@@ -138,7 +138,7 @@ namespace PetShopWeb.Controllers
         [HttpPost]
         public async Task<IActionResult> EditUser(EditUserViewModel model)
         {
-            var user = await _userManager.FindByIdAsync(model.Id);
+            var user = model.Id is null ? null : await _userManager.FindByIdAsync(model.Id);
             if (user is null)
             {
                 ViewBag.ErrorMessage = $"User with Id - {model.Id} hasn't been found";
@@ -222,8 +222,9 @@ namespace PetShopWeb.Controllers
                 Id = id,
                 RoleName = role.Name
             };
+            var roleName = role.Name!;
             foreach (var user in _userManager.Users.ToList())
-                if (await _userManager.IsInRoleAsync(user, role.Name))
+                if (user.UserName is not null && await _userManager.IsInRoleAsync(user, roleName))
                     editModel.Users!.Add(user.UserName);
 
             return View(editModel);
@@ -232,7 +233,7 @@ namespace PetShopWeb.Controllers
         [HttpPost]
         public async Task<IActionResult> EditRole(EditRoleViewModel editModel)
         {
-            var role = await _roleManager.FindByIdAsync(editModel.Id);
+            var role = editModel.Id is null ? null : await _roleManager.FindByIdAsync(editModel.Id);
             if (role is null)
                 return View(nameof(RolesManager));
             else
@@ -283,6 +284,7 @@ namespace PetShopWeb.Controllers
             }
 
             var model = new List<UserRoleViewModel>();
+            var roleName = role.Name!;
             foreach (var user in _userManager.Users.ToList())
             {
                 var userRoleViewModel = new UserRoleViewModel()
@@ -290,7 +292,7 @@ namespace PetShopWeb.Controllers
                     UserId = user.Id,
                     UserName = user.UserName
                 };
-                userRoleViewModel.IsSelected = await _userManager.IsInRoleAsync(user, role.Name);
+                userRoleViewModel.IsSelected = await _userManager.IsInRoleAsync(user, roleName);
                 model.Add(userRoleViewModel);
             }
             return View(model);
@@ -307,15 +309,19 @@ namespace PetShopWeb.Controllers
                 return NotFound();
             }
 
+            var roleName = role.Name!;
             for (int i = 0; i < model.Count; i++)
             {
-                var user = await _userManager.FindByIdAsync(model[i].UserId);
-                IdentityResult? result;
-                if (model[i].IsSelected && !await _userManager.IsInRoleAsync(user, role.Name))
+                var user = model[i].UserId is null ? null : await _userManager.FindByIdAsync(model[i].UserId!);
+                if (user is null)
+                    continue;
 
-                    result = await _userManager.AddToRoleAsync(user, role.Name);
-                else if (!model[i].IsSelected && await _userManager.IsInRoleAsync(user, role.Name))
-                    result = await _userManager.RemoveFromRoleAsync(user, role.Name);
+                IdentityResult? result;
+                if (model[i].IsSelected && !await _userManager.IsInRoleAsync(user, roleName))
+
+                    result = await _userManager.AddToRoleAsync(user, roleName);
+                else if (!model[i].IsSelected && await _userManager.IsInRoleAsync(user, roleName))
+                    result = await _userManager.RemoveFromRoleAsync(user, roleName);
                 else
                     continue;
 
@@ -349,7 +355,7 @@ namespace PetShopWeb.Controllers
                     RoleId = role.Id,
                     RoleName = role.Name
                 };
-                userRolesModel.IsSelected = await _userManager.IsInRoleAsync(user, role.Name);
+                userRolesModel.IsSelected = await _userManager.IsInRoleAsync(user, role.Name!);
                 model.Add(userRolesModel);
             }
 
@@ -376,7 +382,7 @@ namespace PetShopWeb.Controllers
                 return View(model);
             }
 
-            result = await _userManager.AddToRolesAsync(user, model.Where(x => x.IsSelected).Select(u => u.RoleName));
+            result = await _userManager.AddToRolesAsync(user, model.Where(x => x.IsSelected && x.RoleName is not null).Select(u => u.RoleName!));
 
             if (!result.Succeeded)
             {
