@@ -1,5 +1,4 @@
 ﻿using Microsoft.AspNetCore.Identity;
-using System.Security.Claims;
 
 namespace PetShopWeb.Repositories.AccountRepository
 {

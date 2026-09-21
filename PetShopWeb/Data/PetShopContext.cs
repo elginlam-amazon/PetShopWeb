@@ -1,8 +1,6 @@
 ﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using PetShopWeb.Models;
-using Microsoft.EntityFrameworkCore.Design;
-using Microsoft.AspNetCore.Identity;
 
 namespace PetShopWeb.Data
 {
