@@ -1,0 +1,715 @@
+# 📊 Executive Report: PetShopWeb Upgrade from .NET 6 to .NET 10  
+  
+## 1. 🧭 Executive Summary  
+- 🎯 **Scope:** Upgrade the `PetShopWeb` ASP.NET Core MVC app (EF Core, ASP.NET Core Identity, SQL Server, Bootstrap, Docker) from **.NET 6 to .NET 10 (`net10.0`)**.  
+- 🔎 **Starting point:** The app was already on ASP.NET Core 6 and used an SDK-style project, not .NET Framework. It had no System.Web, EF6, Web.config or Global.asax code to migrate, so the work was version alignment and cleanup.  
+- 🤖 **Approach:** Microsoft Upgrade Assistant ran first and changed the target framework and package versions. Kiro CLI then checked the build, cleared every warning that appeared on .NET 10, fixed a vulnerable indirect dependency and updated the Docker images.  
+- ✅ **Outcome:** `dotnet build` passes with **0 errors and 0 warnings** (exit code 0). Before Kiro's changes the build passed with **18 distinct warnings**.  
+- ⏱️ **Duration:** The automated run took about **6 minutes** in total: Upgrade Assistant started at 11:19:43 UTC, and the Kiro session lasted 4m 23s.  
+  
+## 2. 🏗️ Application Changes  
+- 🎯 **Target framework:** `net6.0` ➡️ `net10.0`.  
+- 📦 **NuGet packages** (updated by Upgrade Assistant):  
+  - 🔐 `Microsoft.AspNetCore.Identity.EntityFrameworkCore` 6.0.11 ➡️ **10.0.12**  
+  - 🗄️ `Microsoft.EntityFrameworkCore.SqlServer` 7.0.0 ➡️ **10.0.12**  
+  - 🧩 `Microsoft.EntityFrameworkCore.Proxies` 7.0.0 ➡️ **10.0.12**  
+  - 🛠️ `Microsoft.EntityFrameworkCore.Tools` 6.0.11 ➡️ **10.0.12**  
+  - 🏗️ `Microsoft.VisualStudio.Web.CodeGeneration.Design` 6.0.10 ➡️ **10.0.2**  
+- 🛡️ **Security fix** (added by Kiro): the indirect `NuGet.Packaging` and `NuGet.Protocol` packages were pinned from 6.12.1 to **6.12.5**. This fixes advisory GHSA-g4vj-cjjj-v7hg (warning NU1901).  
+- 🗂️ **Solution file:** Upgrade Assistant updated the project type GUID in `PetShopWeb.sln` to the SDK-style project type.  
+- 🐳 **Container:** The Docker images moved from `sdk:6.0`/`aspnet:6.0` to `sdk:10.0`/`aspnet:10.0`. `ASPNETCORE_HTTP_PORTS=80` keeps the app on the port that docker-compose maps (.NET 8+ images listen on 8080 by default).  
+- 🧱 **Architecture:** The MVC controllers, repository pattern, Identity setup, EF Core seed data and Razor views are unchanged.  
+  
+## 3. 🧰 Tools Used  
+- ⚙️ **.NET SDK 10.0.401**: build and restore validation. SDKs 5.0, 6.0, 7.0 and 8.0 were also installed.  
+- 🔄 **Microsoft .NET Upgrade Assistant 1.0.518.26217**: in-place framework upgrade (`framework.inplace`) of the project file, package map and solution type GUID.  
+  - 📈 Its result line was "7 succeeded, 0 failed, 349 skipped". The skipped items were mostly static assets such as JSON and SCSS files.  
+  - ⚠️ It reported "Msbuild was not found", so it did not check the build itself. Kiro CLI did that afterwards.  
+- 🤖 **Kiro CLI 2.14.2** with model **claude-opus-5.5**: build checks, warning fixes, security pinning, Docker updates and documentation. It worked non-interactively with all tools trusted.  
+- 🧠 **Supporting tools:**  
+  - 📚 CodeKB: an index of the pre-upgrade code, used to map components before changing them.  
+  - 📖 The .NET migration knowledge base.  
+  - 🌐 The GitHub Advisory Database, used to find the patched NuGet client version.  
+  
+## 4. 💻 Code Changes  
+- 📄 **`PetShopWeb.csproj`**  
+  - 🎯 Target framework changed to `net10.0` and the packages above updated.  
+  - ➕ Direct `PackageReference` entries added for `NuGet.Packaging` and `NuGet.Protocol` 6.12.5, with a comment explaining why.  
+- 🚀 **`Program.cs`**  
+  - 🔀 `app.UseEndpoints(...)` replaced with top-level `app.MapControllerRoute(...)` (warning ASP0014). The route template `{controller=Home}/{action=HomePage}/{id?}` is unchanged.  
+  - ❔ `connectionString` is now declared `string?`, and `adminRole.Name!` is passed when seeding the admin user (warnings CS8600 and CS8604).  
+- 🔐 **`Controllers/AccountController.cs`**  
+  - 🏷️ Identity 10 adds nullability annotations, which produced 15 CS8604/CS8620 warnings. They were fixed with null-forgiving operators where the value is already guaranteed by `[Required]` validation or comes from the database.  
+  - 🛑 **Small behaviour change:** in the `EditUsersInRole` POST action, an unknown user id is now skipped (`continue`). Before, it threw an `ArgumentNullException`.  
+- 🖼️ **`Attributes/ImageExtensionAttribute.cs`**: the local variable `path` is now `string?` (CS8600). Validation logic is unchanged.  
+- 🐳 **`Dockerfile`**: base images are now 10.0 and the `ASPNETCORE_HTTP_PORTS=80` environment variable was added.  
+- 📝 **`/data/code/summary.md`**: technical upgrade notes and next steps.  
+- 📉 **Warning count:** 18 distinct warnings ➡️ **0**.  
+  
+## 5. ⏳ Time Savings Estimate  
+- 📏 **Complexity:** low to moderate. There is one project, the app already ran on .NET 6, and no framework migration was needed. Most of the effort is package alignment, nullability fixes, security research and container updates.  
+- 👩‍💻 **Estimated manual effort:** about **4–6 engineer hours**:  
+  - 📦 Package version research and alignment: about 1 h  
+  - 🏷️ Reviewing and fixing the nullability warnings from Identity 10 annotations: about 1–1.5 h  
+  - 🛡️ Researching the vulnerability advisory and pinning the fix: about 0.5 h  
+  - 🔀 Endpoint routing modernisation and Docker image and port changes: about 1 h  
+  - ✅ Build checks and documentation: about 1–1.5 h  
+- 🤖 **Automated effort:** about **6 minutes** of tool run time, plus human review.  
+- 💰 **Estimated saving:** about **85–95%** of the hands-on upgrade effort. Human time moves from making the changes to reviewing them.  
+  
+## 6. 🚦 Next Steps  
+### ✅ Validation  
+- 🧪 **No tests exist.** There is no test project, so no automated tests ran. Add an xUnit project with smoke tests for the controllers and repositories.  
+- 🖥️ **Run the app locally on .NET 10:**  
+  - 🔑 Login and logout, register, and admin role and user management  
+  - 🐾 Animal create, edit and delete, image upload, and comments  
+- 🐳 **Rebuild and run the Docker images.** The published `yarins2000/petshopapp:1.0` image is still .NET 6. Confirm that `localhost:3000` serves the app.  
+- 🗄️ **Check EF Core 10 against SQL Server:** confirm that `EnsureCreated()` and the `HasData` seed data work as before.  
+  
+### 🔧 Improvement Recommendations  
+- 🏷️ **Role name isn't validated:** `CreateRoleViewModel` uses `Microsoft.Build.Framework.Required`, which is not a validation attribute. Replace it with `System.ComponentModel.DataAnnotations.Required`. Note that this changes validation behaviour.  
+- 📦 **Docker publish may fail:** after `COPY . .`, the Dockerfile's bare `dotnet publish` can fail with MSB1011 because both the `.csproj` and `.sln` are in `/app`. Use `dotnet publish PetShopWeb/PetShopWeb.csproj`.  
+- 🔌 **Port 80 as non-root:** the .NET 10 image runs as a non-root user. If the host doesn't allow unprivileged binding to port 80, switch to port 8080 and update docker-compose.  
+- ⚠️ **Database is wiped on startup:** `Program.cs` calls `EnsureDeleted()` every time the app starts. Limit this to Development, or replace it with EF Core migrations for test and prod.  
+- 🔒 **Secrets in config:** move connection strings and credentials (including the commented-out `sa` password) out of `appsettings.json` into user-secrets, environment variables or a secrets vault.  
+- 🧹 **Project file clutter:** remove the leftover `<Content Remove="C:\Users\PC\.nuget\...">` entries, which are Windows-specific paths.  
+- 🛡️ **Ongoing maintenance:** add dependency vulnerability scanning to CI (`dotnet list package --vulnerable`), and keep up with .NET 10 LTS servicing updates.  
+
+## Credit usage
+
+💳 Kiro CLI credits used: 15.29  
+
+## Codebase index refresh
+
+- Outcome: Index current
+- Reason: Index current at ec964657e68e48b475e530e91f5e5d5c8addb61e.
+- Previously indexed commit: ec964657e68e48b475e530e91f5e5d5c8addb61e
+- Source commit at transformation start: ec964657e68e48b475e530e91f5e5d5c8addb61e
+- Duration: 0.0s
+
+## Requirements register refresh
+
+- Outcome: Refreshed
+- Duration: 0.9s
+
+## Feature Parity Verification
+
+- Requirements evaluated: 85
+- Satisfied: 69
+- Regressions: 0
+- Unverified: 16
+- Behaviour-judged (changed requirements): 0
+
+### Verdict coverage
+
+Of 85 requirement(s): 0 test-backed, 0 behaviour-judged, 69 unchanged-by-construction, 16 unverified.
+
+### Unverified
+
+- **FR-create-role-1cc239e5**: WHEN a caller invokes CreateRole, the AccountController SHALL render the CreateRole view with the rolemodel.
+  - Acceptance criteria:
+    - AC1: IF identityResult.Succeeded, THEN the AccountController SHALL return RedirectToAction("RolesManager") (a redirect to the RolesManager action).
+    - AC2: WHEN CreateRole runs, the AccountController SHALL call _roleManager.CreateAsync(identityRole).
+    - AC3: WHEN CreateRole completes normally, the AccountController SHALL return View(rolemodel) (a view result).
+    - AC4: The AccountController SHALL serve CreateRole only for HTTP POST requests ([HttpPost]).
+    - AC5: WHEN CreateRole is invoked, the AccountController SHALL accept rolemodel of type CreateRoleViewModel.
+  - Verdict: unverified (evidence: no-evidence)
+  - Reasoning: The implementing code changed and no covering test maps to this requirement.
+  - Caveat: The behaviour judge produced no ruling (unreached, over deadline, or unavailable), so parity could not be established either way.
+- **FR-delete-role-ffa3bc63**: WHEN a caller invokes DeleteRole, the AccountController SHALL return an HTTP 404 Not Found result.
+  - Acceptance criteria:
+    - AC1: IF role is null, THEN the AccountController SHALL return NotFound() (an HTTP 404 Not Found result).
+    - AC2: IF result.Succeeded, THEN the AccountController SHALL return RedirectToAction("RolesManager") (a redirect to the RolesManager action).
+    - AC3: WHEN DeleteRole runs, the AccountController SHALL call _roleManager.DeleteAsync(role).
+    - AC4: WHEN DeleteRole runs, the AccountController SHALL set ViewBag.ErrorMessage to $"Role with Id - {id} hasn't been found".
+    - AC5: WHEN DeleteRole completes normally, the AccountController SHALL return View("RolesManager") (the RolesManager view).
+    - AC6: WHEN DeleteRole is invoked, the AccountController SHALL accept id of type string.
+  - Verdict: unverified (evidence: no-evidence)
+  - Reasoning: The implementing code changed and no covering test maps to this requirement.
+  - Caveat: The behaviour judge produced no ruling (unreached, over deadline, or unavailable), so parity could not be established either way.
+- **FR-delete-user-fc0decee**: WHEN a caller invokes DeleteUser, the AccountController SHALL return an HTTP 404 Not Found result.
+  - Acceptance criteria:
+    - AC1: IF user is null, THEN the AccountController SHALL return NotFound() (an HTTP 404 Not Found result).
+    - AC2: IF result.Succeeded, THEN the AccountController SHALL return RedirectToAction("UsersManager") (a redirect to the UsersManager action).
+    - AC3: WHEN DeleteUser runs, the AccountController SHALL call _userManager.DeleteAsync(user).
+    - AC4: WHEN DeleteUser runs, the AccountController SHALL set ViewBag.ErrorMessage to $"User with Id - {id} hasn't been found".
+    - AC5: WHEN DeleteUser completes normally, the AccountController SHALL return View("UsersManager") (the UsersManager view).
+    - AC6: WHEN DeleteUser is invoked, the AccountController SHALL accept id of type string.
+  - Verdict: unverified (evidence: no-evidence)
+  - Reasoning: The implementing code changed and no covering test maps to this requirement.
+  - Caveat: The behaviour judge produced no ruling (unreached, over deadline, or unavailable), so parity could not be established either way.
+- **FR-handles-authentication-f-93c9f3a3**: WHEN a caller invokes IActionResult, the AccountController SHALL render the RolesManager view.
+  - Acceptance criteria:
+    - AC1: WHEN RolesManager runs, the AccountController SHALL call GetRoles.
+    - AC2: WHEN RolesManager completes normally, the AccountController SHALL return View(_accountRepository.GetRoles()) (a view result).
+    - AC3: IF the caller does not satisfy [Authorize], THEN the AccountController SHALL refuse the request before RolesManager runs.
+  - Verdict: unverified (evidence: no-evidence)
+  - Reasoning: The implementing code changed and no covering test maps to this requirement.
+  - Caveat: The behaviour judge produced no ruling (unreached, over deadline, or unavailable), so parity could not be established either way.
+- **FR-handles-authentication-f-c6f331b3**: WHEN a caller invokes Login, the AccountController SHALL render the Login view with the loginmodel.
+  - Acceptance criteria:
+    - AC1: IF !string.IsNullOrEmpty(returnUrl), THEN the AccountController SHALL return LocalRedirect(returnUrl) (a local redirect).
+    - AC2: IF string.IsNullOrEmpty(returnUrl), THEN the AccountController SHALL return RedirectToAction("HomePage", "Home") (a redirect to the HomePage action of the Home controller).
+    - AC3: WHEN Login completes normally, the AccountController SHALL return View(loginmodel) (a view result).
+    - AC4: The AccountController SHALL serve Login only for HTTP POST requests ([HttpPost]).
+    - AC5: The AccountController SHALL let unauthenticated callers invoke Login ([AllowAnonymous]).
+    - AC6: WHEN Login is invoked, the AccountController SHALL accept loginmodel of type LoginViewModel and returnUrl of type string?.
+  - Verdict: unverified (evidence: no-evidence)
+  - Reasoning: The implementing code changed and no covering test maps to this requirement.
+  - Caveat: The behaviour judge produced no ruling (unreached, over deadline, or unavailable), so parity could not be established either way.
+- **FR-handles-authorization-fo-588119a0**: WHEN a caller creates an AccountController, the AccountController SHALL initialize the AccountController with the given user manager, sign in manager, role manager and account repository.
+  - Acceptance criteria:
+    - AC1: WHEN AccountController is constructed, the AccountController SHALL store userManager in _userManager, store signInManager in _signInManager and store roleManager in _roleManager.
+    - AC2: WHEN AccountController is constructed, the AccountController SHALL store accountRepository in _accountRepository.
+    - AC3: WHEN AccountController is constructed, the AccountController SHALL accept userManager of type UserManager&lt;IdentityUser>, signInManager of type SignInManager&lt;IdentityUser>, roleManager of type RoleManager&lt;IdentityRole> and accountRepository of type IAccountRepository.
+  - Verdict: unverified (evidence: no-evidence)
+  - Reasoning: The implementing code changed and no covering test maps to this requirement.
+  - Caveat: The behaviour judge produced no ruling (unreached, over deadline, or unavailable), so parity could not be established either way.
+- **FR-handles-authorization-fo-b8d224fa**: WHEN a caller invokes EditRole, the AccountController SHALL perform EditRole.
+  - Acceptance criteria:
+    - AC1: IF role is null, THEN the AccountController SHALL return View(nameof(RolesManager)) (a view result).
+    - AC2: IF !(role is null), THEN the AccountController SHALL return View(editModel) (a view result).
+    - AC3: IF result.Succeeded, THEN the AccountController SHALL return RedirectToAction("RolesManager") (a redirect to the RolesManager action).
+    - AC4: WHEN EditRole runs, the AccountController SHALL call _roleManager.UpdateAsync(role).
+    - AC5: WHEN EditRole completes normally, the AccountController SHALL return a value of type IActionResult.
+    - AC6: WHEN EditRole is invoked, the AccountController SHALL accept editModel of type EditRoleViewModel.
+  - Verdict: unverified (evidence: no-evidence)
+  - Reasoning: The implementing code changed and no covering test maps to this requirement.
+  - Caveat: The behaviour judge produced no ruling (unreached, over deadline, or unavailable), so parity could not be established either way.
+- **FR-handles-authorization-fo-7e07bf41**: WHEN a caller invokes EditUsersInRole, the AccountController SHALL redirect to the EditRole action.
+  - Acceptance criteria:
+    - AC1: IF role is null, THEN the AccountController SHALL return NotFound() (an HTTP 404 Not Found result).
+    - AC2: IF !(i < (model.Count - 1)), THEN the AccountController SHALL return RedirectToAction("EditRole", new { Id = roleId }) (a redirect to the EditRole action).
+    - AC3: WHEN EditUsersInRole runs, the AccountController SHALL call _userManager.AddToRoleAsync(user, role.Name) and call _userManager.RemoveFromRoleAsync(user, role.Name).
+    - AC4: WHEN EditUsersInRole runs, the AccountController SHALL set ViewBag.ErrorMessage to $"Role with id - {roleId} hasn't been found".
+    - AC5: WHEN EditUsersInRole completes normally, the AccountController SHALL return RedirectToAction("EditRole", new { Id = roleId }) (a redirect to the EditRole action).
+    - AC6: WHEN EditUsersInRole is invoked, the AccountController SHALL accept model of type List&lt;UserRoleViewModel> and roleId of type string.
+  - Verdict: unverified (evidence: no-evidence)
+  - Reasoning: The implementing code changed and no covering test maps to this requirement.
+  - Caveat: The behaviour judge produced no ruling (unreached, over deadline, or unavailable), so parity could not be established either way.
+- **FR-handles-authorization-fo-d39cb7a3**: WHEN a caller invokes ManageUserRoles, the AccountController SHALL render the ManageUserRoles view with the model.
+  - Acceptance criteria:
+    - AC1: IF user is null, THEN the AccountController SHALL return NotFound() (an HTTP 404 Not Found result).
+    - AC2: IF !result.Succeeded, THEN the AccountController SHALL return View(model) (a view result).
+    - AC3: WHEN ManageUserRoles runs, the AccountController SHALL call _userManager.RemoveFromRolesAsync(user, roles) and call _userManager.AddToRolesAsync(user, model.Where(x => x.IsSelected).Select(u => u.RoleName)).
+    - AC4: WHEN ManageUserRoles runs, the AccountController SHALL set ViewBag.ErrorMessage to $"User with id - {userId} hasn't been found".
+    - AC5: IF result.Succeeded, THEN the AccountController SHALL return RedirectToAction("EditUser", new { Id = userId }) (a redirect to the EditUser action).
+    - AC6: WHEN ManageUserRoles is invoked, the AccountController SHALL accept model of type List&lt;UserRolesViewModel> and userId of type string.
+  - Verdict: unverified (evidence: no-evidence)
+  - Reasoning: The implementing code changed and no covering test maps to this requirement.
+  - Caveat: The behaviour judge produced no ruling (unreached, over deadline, or unavailable), so parity could not be established either way.
+- **FR-handles-logging-for-logo-d454b60d**: WHEN a caller invokes Logout, the AccountController SHALL redirect to the HomePage action of the Home controller.
+  - Acceptance criteria:
+    - AC1: WHEN Logout completes normally, the AccountController SHALL return RedirectToAction("HomePage", "Home") (a redirect to the HomePage action of the Home controller).
+    - AC2: The AccountController SHALL serve Logout only for HTTP POST requests ([HttpPost]).
+    - AC3: The AccountController SHALL let unauthenticated callers invoke Logout ([AllowAnonymous]).
+  - Verdict: unverified (evidence: no-evidence)
+  - Reasoning: The implementing code changed and no covering test maps to this requirement.
+  - Caveat: The behaviour judge produced no ruling (unreached, over deadline, or unavailable), so parity could not be established either way.
+- **FR-handles-retrieval-for-is-38e417a4**: WHEN a caller invokes IsEmailInUse, the AccountController SHALL report whether it is email in use.
+  - Acceptance criteria:
+    - AC1: IF user is null, THEN the AccountController SHALL return Json(true) (a JSON result).
+    - AC2: IF !(user is null), THEN the AccountController SHALL return Json($"The provided email - {email} is already in use") (a JSON result).
+    - AC3: WHEN IsEmailInUse completes normally, the AccountController SHALL return a value of type IActionResult.
+    - AC4: The AccountController SHALL let unauthenticated callers invoke IsEmailInUse ([AllowAnonymous]).
+    - AC5: WHEN IsEmailInUse is invoked, the AccountController SHALL accept email of type string.
+  - Verdict: unverified (evidence: no-evidence)
+  - Reasoning: The implementing code changed and no covering test maps to this requirement.
+  - Caveat: The behaviour judge produced no ruling (unreached, over deadline, or unavailable), so parity could not be established either way.
+- **FR-provide-account-controll-038b8a66**: WHEN a caller invokes an operation of AccountController, the AccountController SHALL provide the operations IActionResult, Login, Logout, Register and IsEmailInUse (+7 more).
+  - Acceptance criteria:
+    - AC1: The AccountController SHALL expose the operations IActionResult, Login, Logout, Register and IsEmailInUse (+7 more).
+  - Verdict: unverified (evidence: no-evidence)
+  - Reasoning: The implementing code changed and no covering test maps to this requirement.
+  - Caveat: The behaviour judge produced no ruling (unreached, over deadline, or unavailable), so parity could not be established either way.
+- **FR-provide-image-extension-829d238e**: WHEN a caller invokes an operation of ImageExtensionAttribute, the ImageExtensionAttribute SHALL provide the operation IsValid.
+  - Acceptance criteria:
+    - AC1: The ImageExtensionAttribute SHALL expose the operation IsValid.
+  - Verdict: unverified (evidence: no-evidence)
+  - Reasoning: The implementing code changed and no covering test maps to this requirement.
+  - Caveat: The behaviour judge produced no ruling (unreached, over deadline, or unavailable), so parity could not be established either way.
+- **FR-register-as-part-workflo-04311093**: WHEN a caller invokes Register, the AccountController SHALL render the Register view with the registermodel.
+  - Acceptance criteria:
+    - AC1: IF result.Succeeded, THEN the AccountController SHALL return RedirectToAction("HomePage", "Home") (a redirect to the HomePage action of the Home controller).
+    - AC2: IF _signInManager.IsSignedIn(User) && User.IsInRole("admin"), THEN the AccountController SHALL return RedirectToAction("UsersManager") (a redirect to the UsersManager action).
+    - AC3: WHEN Register runs, the AccountController SHALL call _userManager.CreateAsync(user, registermodel.Password).
+    - AC4: WHEN Register completes normally, the AccountController SHALL return View(registermodel) (a view result).
+    - AC5: The AccountController SHALL serve Register only for HTTP POST requests ([HttpPost]).
+    - AC6: WHEN Register is invoked, the AccountController SHALL accept registermodel of type RegisterViewModel.
+  - Verdict: unverified (evidence: no-evidence)
+  - Reasoning: The implementing code changed and no covering test maps to this requirement.
+  - Caveat: The behaviour judge produced no ruling (unreached, over deadline, or unavailable), so parity could not be established either way.
+- **NFR-SECURITY-4d0f2503**: WHEN a caller invokes IActionResult, Login, an operation of AccountController or another supporting component, the system SHALL authenticate and authorize access to protected operations.
+  - Acceptance criteria:
+    - AC1: WHEN a caller that is not in the admin role sends a request to an action of PetShopWeb.Controllers.AccountController that is not marked [AllowAnonymous], the system SHALL refuse the request before the action runs (evidence: [Authorize(Roles = "admin")] on PetShopWeb.Controllers.AccountController, AccountController.cs:10).
+    - AC2: WHEN a caller that is not authenticated sends a request to PetShopWeb.Controllers.AccountController.IActionResult, the system SHALL refuse the request before IActionResult runs (evidence: [Authorize] on PetShopWeb.Controllers.AccountController.IActionResult, AccountController.cs:208).
+    - AC3: WHEN a caller invokes PetShopWeb.Controllers.AccountController.Login, the system SHALL enforce authentication and authorization (evidence: Login in PetShopWeb.Controllers.AccountController.Login, AccountController.cs:43).
+    - AC4: WHEN a caller that is not authenticated sends a request to an action of PetShopWeb.Controllers.AdministratorController, the system SHALL refuse the request before the action runs (evidence: [Authorize] on PetShopWeb.Controllers.AdministratorController, AdministratorController.cs:9).
+    - AC5: WHEN a caller invokes an operation of PetShopWeb.ViewModels.LoginViewModel, the system SHALL enforce authentication and authorization (evidence: LoginViewModel in PetShopWeb.ViewModels.LoginViewModel, LoginViewModel.cs:5).
+  - Verdict: unverified (evidence: no-evidence)
+  - Reasoning: The implementing code changed and no covering test maps to this requirement.
+  - Caveat: The behaviour judge produced no ruling (unreached, over deadline, or unavailable), so parity could not be established either way.
+- **NFR-SECURITY-742b03ce**: WHEN sensitive data is handled by AccountController or an operation configured by _signInManager, the system SHALL protect data in transit and at rest using cryptographic controls.
+  - Acceptance criteria:
+    - AC1: WHEN sensitive data is handled by an operation configured by PetShopWeb.Controllers.AccountController._signInManager, the system SHALL apply cryptographic protection (evidence: _signInManager in PetShopWeb.Controllers.AccountController._signInManager, AccountController.cs:14).
+    - AC2: WHEN sensitive data is handled by PetShopWeb.Controllers.AccountController.AccountController, the system SHALL apply cryptographic protection (evidence: SignInManager in PetShopWeb.Controllers.AccountController.AccountController, AccountController.cs:19).
+  - Verdict: unverified (evidence: no-evidence)
+  - Reasoning: The implementing code changed and no covering test maps to this requirement.
+  - Caveat: The behaviour judge produced no ruling (unreached, over deadline, or unavailable), so parity could not be established either way.
+
+### Satisfied (69) — reasoning
+
+- **FR-handles-authorization-fo-2a3d29f5**: WHEN PetShopWeb.ViewModels.CreateRoleViewModel.RoleName is used, the CreateRoleViewModel SHALL expose the role name value as a string?.
+  - Acceptance criteria:
+    - AC1: The CreateRoleViewModel SHALL expose RoleName as a string? property with public get and set accessors.
+    - AC2: IF RoleName is null, empty or white space, THEN the CreateRoleViewModel SHALL reject it as invalid ([Required]).
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-communication-fo-a3427fad**: WHEN PetShopWeb.ViewModels.EditUserViewModel.Email is used, the EditUserViewModel SHALL expose the email value as a string?.
+  - Acceptance criteria:
+    - AC1: The EditUserViewModel SHALL expose Email as a string? property with public get and set accessors.
+    - AC2: IF Email is null, empty or white space, THEN the EditUserViewModel SHALL reject it as invalid ([Required]).
+    - AC3: IF Email is set and is not an e-mail address, THEN the EditUserViewModel SHALL reject it as invalid ([EmailAddress]).
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-add-comment-eacfabf7**: WHEN a caller invokes AddComment, the CommentRepository SHALL save the changes.
+  - Acceptance criteria:
+    - AC1: WHEN AddComment runs, the CommentRepository SHALL save the changes via context.SaveChanges().
+    - AC2: WHEN AddComment is invoked, the CommentRepository SHALL accept animalId of type int and commentText of type string.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-add-new-animal-edc7d966**: WHEN a caller invokes AddNewAnimal, the AnimalRepository SHALL persist the new animal.
+  - Acceptance criteria:
+    - AC1: WHEN AddNewAnimal runs, the AnimalRepository SHALL save the changes via context.SaveChanges().
+    - AC2: WHEN AddNewAnimal is invoked, the AnimalRepository SHALL accept newAnimal of type Animal.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-delete-animal-a7096e13**: WHEN a caller invokes DeleteAnimal, the AnimalRepository SHALL delete the animal.
+  - Acceptance criteria:
+    - AC1: WHEN DeleteAnimal runs, the AnimalRepository SHALL save the changes via context.SaveChanges().
+    - AC2: WHEN DeleteAnimal is invoked, the AnimalRepository SHALL accept id of type int.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-get-animal-id-48a0c889**: WHEN a caller invokes GetAnimalById, the AnimalRepository SHALL return the animal for the given id.
+  - Acceptance criteria:
+    - AC1: WHEN GetAnimalById completes normally, the AnimalRepository SHALL return context.Animals!.Find(id).
+    - AC2: WHEN GetAnimalById is invoked, the AnimalRepository SHALL accept id of type int.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-get-animals-category-4d12884a**: WHEN a caller invokes GetAnimalsByCategory, the CategoryRepository SHALL return the animals for the given category.
+  - Acceptance criteria:
+    - AC1: IF category is not null, THEN the CategoryRepository SHALL return category.Animals!.
+    - AC2: WHEN GetAnimalsByCategory completes normally, the CategoryRepository SHALL return context.Animals!.
+    - AC3: WHEN GetAnimalsByCategory is invoked, the CategoryRepository SHALL accept categoryId of type int.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-get-animals-ef3531fb**: WHEN a caller invokes GetAnimals, the AnimalRepository SHALL return the animals.
+  - Acceptance criteria:
+    - AC1: WHEN GetAnimals completes normally, the AnimalRepository SHALL return context.Animals!.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-get-categories-56fe18be**: WHEN a caller invokes GetCategories, the CategoryRepository SHALL return the categories.
+  - Acceptance criteria:
+    - AC1: WHEN GetCategories completes normally, the CategoryRepository SHALL return context.Categories!.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-get-most-reviewed-animal-379125ef**: WHEN a caller invokes GetMostReviewedAnimals, the AnimalRepository SHALL return the most reviewed animals for the given animals count.
+  - Acceptance criteria:
+    - AC1: WHEN GetMostReviewedAnimals completes normally, the AnimalRepository SHALL return context.Animals!.OrderByDescending(a => a.Comments!.Count).Take(animalsCount).ToList().
+    - AC2: WHEN GetMostReviewedAnimals is invoked, the AnimalRepository SHALL accept animalsCount of type int.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-get-roles-8fd198de**: WHEN a caller invokes GetRoles, the AccountRepository SHALL return the roles.
+  - Acceptance criteria:
+    - AC1: WHEN GetRoles completes normally, the AccountRepository SHALL return roleManager.Roles.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-get-users-a1197de7**: WHEN a caller invokes GetUsers, the AccountRepository SHALL return the users.
+  - Acceptance criteria:
+    - AC1: WHEN GetUsers completes normally, the AccountRepository SHALL return userManager.Users.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-authentication-f-084910e9**: WHEN PetShopWeb.ViewModels.LoginViewModel.Password is used, the LoginViewModel SHALL expose the password value as a string?.
+  - Acceptance criteria:
+    - AC1: The LoginViewModel SHALL expose Password as a string? property with public get and set accessors.
+    - AC2: IF Password is null, empty or white space, THEN the LoginViewModel SHALL reject it as invalid ([Required]).
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-communication-fo-1eba70e5**: WHEN PetShopWeb.Models.Animal.Name is used, the Animal SHALL expose the name value as a string?.
+  - Acceptance criteria:
+    - AC1: The Animal SHALL expose Name as a string? property with public get and set accessors.
+    - AC2: IF Name is null, empty or white space, THEN the Animal SHALL reject it as invalid ([Required(ErrorMessage = "Please specify a name")]) with the message "Please specify a name".
+    - AC3: IF Name is set and is longer than 20, THEN the Animal SHALL reject it as invalid ([MaxLength(20)]).
+    - AC4: IF Name is set and does not match @"^[a-zA-Z]+$", THEN the Animal SHALL reject it as invalid ([RegularExpression(@"^[a-zA-Z]+$", ErrorMessage = "Only letters allowed")]) with the message "Only letters allowed".
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-retrieval-for-an-d7f8bdd1**: WHEN PetShopWeb.Data.PetShopContext.Animals is used, the PetShopContext SHALL expose the animals value as a DbSet&lt;Animal>?.
+  - Acceptance criteria:
+    - AC1: The PetShopContext SHALL expose Animals as a DbSet&lt;Animal>? property with public get and set accessors.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-retrieval-for-co-504ab088**: WHEN PetShopWeb.Data.PetShopContext.Comments is used, the PetShopContext SHALL expose the comments value as a DbSet&lt;Comment>?.
+  - Acceptance criteria:
+    - AC1: The PetShopContext SHALL expose Comments as a DbSet&lt;Comment>? property with public get and set accessors.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-retrieval-for-id-ad939189**: WHEN PetShopWeb.ViewModels.EditRoleViewModel.Id is used, the EditRoleViewModel SHALL expose the id value as a string?.
+  - Acceptance criteria:
+    - AC1: The EditRoleViewModel SHALL expose Id as a string? property with public get and set accessors.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-retrieval-for-is-4707572d**: WHEN tShopWeb.ViewModels.UserRoleViewModel.IsSelected is used, the UserRoleViewModel SHALL expose the is selected value as a bool.
+  - Acceptance criteria:
+    - AC1: The UserRoleViewModel SHALL expose IsSelected as a bool property with public get and set accessors.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-update-animal-08d79a10**: WHEN a caller invokes UpdateAnimal, the AnimalRepository SHALL update the animal.
+  - Acceptance criteria:
+    - AC1: WHEN UpdateAnimal runs, the AnimalRepository SHALL save the changes via context.SaveChanges().
+    - AC2: WHEN UpdateAnimal is invoked, the AnimalRepository SHALL accept id of type int and updatedAnimal of type Animal.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-confirm-password-4a189ba0**: WHEN PetShopWeb.ViewModels.RegisterViewModel.ConfirmPassword is used, the RegisterViewModel SHALL expose the confirm password value as a string?.
+  - Acceptance criteria:
+    - AC1: The RegisterViewModel SHALL expose ConfirmPassword as a string? property with public get and set accessors.
+    - AC2: IF ConfirmPassword differs from Password, THEN the RegisterViewModel SHALL reject it as invalid ([Compare(nameof(Password), ErrorMessage = "Password and its confirmation do not match")]) with the message "Password and its confirmation do not match".
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-authorization-fo-c42fe11e**: WHEN a caller creates an AccountRepository, the AccountRepository SHALL initialize the AccountRepository with the given role manager and user manager.
+  - Acceptance criteria:
+    - AC1: WHEN AccountRepository is constructed, the AccountRepository SHALL store roleManager in this.roleManager and store userManager in this.userManager.
+    - AC2: WHEN AccountRepository is constructed, the AccountRepository SHALL accept roleManager of type RoleManager&lt;IdentityRole> and userManager of type UserManager&lt;IdentityUser>.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-authorization-fo-e38474e8**: WHEN tShopWeb.ViewModels.UserRolesViewModel.RoleId is used, the UserRolesViewModel SHALL expose the role id value as a string?.
+  - Acceptance criteria:
+    - AC1: The UserRolesViewModel SHALL expose RoleId as a string? property with public get and set accessors.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-authorization-fo-464471d1**: WHEN PetShopWeb.ViewModels.EditUserViewModel.Roles is used, the EditUserViewModel SHALL expose the roles value as a List&lt;string>?.
+  - Acceptance criteria:
+    - AC1: The EditUserViewModel SHALL expose Roles as a List&lt;string>? property with public get and set accessors.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-communication-fo-bd896c46**: WHEN PetShopWeb.Models.Animal.Age is used, the Animal SHALL expose the age value as an int.
+  - Acceptance criteria:
+    - AC1: The Animal SHALL expose Age as an int property with public get and set accessors.
+    - AC2: IF Age is null, THEN the Animal SHALL reject it as invalid ([Required(ErrorMessage = "Please specify an age")]) with the message "Please specify an age".
+    - AC3: IF Age is set and is outside 1 to 200, THEN the Animal SHALL reject it as invalid ([Range(1, 200, ErrorMessage = "The age must be between 1-200")]) with the message "The age must be between 1-200".
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-communication-fo-3cebd860**: WHEN PetShopWeb.Models.Animal.CategoryId is used, the Animal SHALL expose the category id value as an int.
+  - Acceptance criteria:
+    - AC1: The Animal SHALL expose CategoryId as an int property with public get and set accessors.
+    - AC2: IF CategoryId is null, THEN the Animal SHALL reject it as invalid ([Required(ErrorMessage = "Must choose a category")]) with the message "Must choose a category".
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-communication-fo-4d3fb7d0**: WHEN PetShopWeb.Models.Animal.Description is used, the Animal SHALL expose the description value as a string?.
+  - Acceptance criteria:
+    - AC1: The Animal SHALL expose Description as a string? property with public get and set accessors.
+    - AC2: IF Description is null, empty or white space, THEN the Animal SHALL reject it as invalid ([Required(ErrorMessage = "Please specify a description")]) with the message "Please specify a description".
+    - AC3: IF Description is set and is longer than 5000 characters, THEN the Animal SHALL reject it as invalid ([StringLength(5000, ErrorMessage = "Description can be up to 5000 characters")]) with the message "Description can be up to 5000 characters".
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-communication-fo-5260a950**: WHEN PetShopWeb.Models.Animal.ImagePath is used, the Animal SHALL expose the image path value as a string?.
+  - Acceptance criteria:
+    - AC1: The Animal SHALL expose ImagePath as a string? property with public get and set accessors.
+    - AC2: IF ImagePath is null, empty or white space, THEN the Animal SHALL reject it as invalid ([Required(ErrorMessage = "Please specify a photo")]) with the message "Please specify a photo".
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-configuration-fo-2a36e327**: WHEN a caller creates a PetShopContext, the PetShopContext SHALL initialize the PetShopContext with the given options.
+  - Acceptance criteria:
+    - AC1: WHEN PetShopContext is constructed, the PetShopContext SHALL accept options of type DbContextOptions.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-logging-for-i-ac-fcdd7523**: WHEN a caller invokes IActionResult, the CatalogController SHALL render the ShowCatalog view.
+  - Acceptance criteria:
+    - AC1: IF id is 0, THEN the CatalogController SHALL return View(_animalRepository.GetAnimals()) (a view result).
+    - AC2: WHEN ShowCatalog runs, the CatalogController SHALL set ViewBag.Categories to _categoryRepository.GetCategories().
+    - AC3: WHEN ShowCatalog runs, the CatalogController SHALL call GetCategories, GetAnimals and GetAnimalsByCategory.
+    - AC4: WHEN ShowCatalog completes normally, the CatalogController SHALL return View(_categoryRepository.GetAnimalsByCategory(id)) (a view result).
+    - AC5: WHEN ShowCatalog is invoked, the CatalogController SHALL accept id of type int.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-persistence-for-35b46260**: WHEN a caller creates an AdministratorController, the AdministratorController SHALL initialize the AdministratorController with the given category repository, animal repository and web host environment.
+  - Acceptance criteria:
+    - AC1: WHEN AdministratorController is constructed, the AdministratorController SHALL store categoryRepository in _categoryRepository, store animalRepository in _animalRepository and store webHostEnvironment in _webHostEnvironment.
+    - AC2: WHEN AdministratorController is constructed, the AdministratorController SHALL accept categoryRepository of type ICategoryRepository, animalRepository of type IAnimalRepository and webHostEnvironment of type IWebHostEnvironment.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-persistence-for-920d62e7**: WHEN a caller creates an AnimalDetailsController, the AnimalDetailsController SHALL initialize the AnimalDetailsController with the given animal repository and comment repository.
+  - Acceptance criteria:
+    - AC1: WHEN AnimalDetailsController is constructed, the AnimalDetailsController SHALL store animalRepository in _animalRepository and store commentRepository in _commentRepository.
+    - AC2: WHEN AnimalDetailsController is constructed, the AnimalDetailsController SHALL accept animalRepository of type IAnimalRepository and commentRepository of type ICommentRepository.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-persistence-for-adc9dd44**: WHEN a caller creates an AnimalRepository, the AnimalRepository SHALL initialize the AnimalRepository with the given context.
+  - Acceptance criteria:
+    - AC1: WHEN AnimalRepository is constructed, the AnimalRepository SHALL store context in this.context.
+    - AC2: WHEN AnimalRepository is constructed, the AnimalRepository SHALL accept context of type PetShopContext.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-persistence-for-9e138d24**: WHEN a caller creates a CatalogController, the CatalogController SHALL initialize the CatalogController with the given animal repository and category repository.
+  - Acceptance criteria:
+    - AC1: WHEN CatalogController is constructed, the CatalogController SHALL store animalRepository in _animalRepository and store categoryRepository in _categoryRepository.
+    - AC2: WHEN CatalogController is constructed, the CatalogController SHALL accept animalRepository of type IAnimalRepository and categoryRepository of type ICategoryRepository.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-persistence-for-fa6726b8**: WHEN a caller creates a CategoryRepository, the CategoryRepository SHALL initialize the CategoryRepository with the given context.
+  - Acceptance criteria:
+    - AC1: WHEN CategoryRepository is constructed, the CategoryRepository SHALL store context in this.context.
+    - AC2: WHEN CategoryRepository is constructed, the CategoryRepository SHALL accept context of type PetShopContext.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-persistence-for-3c4f4789**: WHEN a caller creates a CommentRepository, the CommentRepository SHALL initialize the CommentRepository with the given context.
+  - Acceptance criteria:
+    - AC1: WHEN CommentRepository is constructed, the CommentRepository SHALL store context in this.context.
+    - AC2: WHEN CommentRepository is constructed, the CommentRepository SHALL accept context of type PetShopContext.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-persistence-for-9df0d41d**: WHEN a caller creates a HomeController, the HomeController SHALL initialize the HomeController with the given animal repository.
+  - Acceptance criteria:
+    - AC1: WHEN HomeController is constructed, the HomeController SHALL store animalRepository in _animalRepository.
+    - AC2: WHEN HomeController is constructed, the HomeController SHALL accept animalRepository of type IAnimalRepository.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-persistence-for-b4bcc7bc**: WHEN a caller invokes an operation of IAccountRepository, the IAccountRepository SHALL provide the operations GetRoles and GetUsers.
+  - Acceptance criteria:
+    - AC1: The IAccountRepository SHALL expose the operations GetRoles and GetUsers.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-persistence-for-1da65e85**: WHEN a caller invokes an operation of IAnimalRepository, the IAnimalRepository SHALL provide the operations GetAnimals, GetAnimalById, GetMostReviewedAnimals, AddNewAnimal and UpdateAnimal (+1 more).
+  - Acceptance criteria:
+    - AC1: The IAnimalRepository SHALL expose the operations GetAnimals, GetAnimalById, GetMostReviewedAnimals, AddNewAnimal and UpdateAnimal (+1 more).
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-persistence-for-7e408d58**: WHEN a caller invokes an operation of ICategoryRepository, the ICategoryRepository SHALL provide the operations GetCategories and GetAnimalsByCategory.
+  - Acceptance criteria:
+    - AC1: The ICategoryRepository SHALL expose the operations GetCategories and GetAnimalsByCategory.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-persistence-for-0cc8eca2**: WHEN a caller invokes an operation of ICommentRepository, the ICommentRepository SHALL provide the operations AddComment and IsCommentExist.
+  - Acceptance criteria:
+    - AC1: The ICommentRepository SHALL expose the operations AddComment and IsCommentExist.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-retrieval-for-an-f4ec96e0**: WHEN PetShopWeb.Models.Comment.AnimalId is used, the Comment SHALL expose the animal id value as an int.
+  - Acceptance criteria:
+    - AC1: The Comment SHALL expose AnimalId as an int property with public get and set accessors.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-retrieval-for-an-3e928eaf**: WHEN PetShopWeb.Models.Comment.Animal is used, the Comment SHALL expose the animal value as an Animal?.
+  - Acceptance criteria:
+    - AC1: The Comment SHALL expose Animal as an Animal? property with public get and set accessors.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-retrieval-for-ca-b4e54e10**: WHEN PetShopWeb.Data.PetShopContext.Categories is used, the PetShopContext SHALL expose the categories value as a DbSet&lt;Category>?.
+  - Acceptance criteria:
+    - AC1: The PetShopContext SHALL expose Categories as a DbSet&lt;Category>? property with public get and set accessors.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-retrieval-for-ca-85cb0478**: WHEN PetShopWeb.Models.Animal.Category is used, the Animal SHALL expose the category value as a Category?.
+  - Acceptance criteria:
+    - AC1: The Animal SHALL expose Category as a Category? property with public get and set accessors.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-retrieval-for-cl-a11ccd73**: WHEN PetShopWeb.ViewModels.EditUserViewModel.Claims is used, the EditUserViewModel SHALL expose the claims value as a List&lt;string>?.
+  - Acceptance criteria:
+    - AC1: The EditUserViewModel SHALL expose Claims as a List&lt;string>? property with public get and set accessors.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-retrieval-for-us-dc426969**: WHEN tShopWeb.ViewModels.UserRoleViewModel.UserId is used, the UserRoleViewModel SHALL expose the user id value as a string?.
+  - Acceptance criteria:
+    - AC1: The UserRoleViewModel SHALL expose UserId as a string? property with public get and set accessors.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-retrieval-for-us-25d8decf**: WHEN tShopWeb.ViewModels.UserRoleViewModel.UserName is used, the UserRoleViewModel SHALL expose the user name value as a string?.
+  - Acceptance criteria:
+    - AC1: The UserRoleViewModel SHALL expose UserName as a string? property with public get and set accessors.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-retrieval-for-us-8b0b4a40**: WHEN PetShopWeb.ViewModels.EditRoleViewModel.Users is used, the EditRoleViewModel SHALL expose the users value as a List&lt;string>?.
+  - Acceptance criteria:
+    - AC1: The EditRoleViewModel SHALL expose Users as a List&lt;string>? property with public get and set accessors.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-handles-validation-for-n-2069cc55**: WHEN a caller invokes nfirmDelete(u, the confirmUserDeletion module SHALL perform nfirmDelete(u.
+  - Acceptance criteria:
+    - AC1: WHEN confirmDelete completes normally, the confirmUserDeletion module SHALL return a value of type nction.
+    - AC2: WHEN confirmDelete is invoked, the confirmUserDeletion module SHALL accept uniqueId and isDeleteClicked as input.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-provide-account-reposito-687cf432**: WHEN a caller invokes an operation of AccountRepository, the AccountRepository SHALL provide the operations GetRoles and GetUsers.
+  - Acceptance criteria:
+    - AC1: The AccountRepository SHALL implement IAccountRepository.
+    - AC2: The AccountRepository SHALL expose the operations GetRoles and GetUsers.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-provide-administrator-co-20415c8d**: WHEN a caller invokes an operation of AdministratorController, the AdministratorController SHALL provide the operation IActionResult.
+  - Acceptance criteria:
+    - AC1: The AdministratorController SHALL expose the operation IActionResult.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-provide-animal-capabilit-b6ad1807**: WHEN a caller invokes an operation of Animal, the Animal SHALL hold the Id, Name, Age, ImagePath and Description (+3 more) values.
+  - Acceptance criteria:
+    - AC1: The Animal SHALL expose the properties Id, Name, Age, ImagePath and Description (+3 more).
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-provide-animal-details-c-a118f737**: WHEN a caller invokes an operation of AnimalDetailsController, the AnimalDetailsController SHALL provide the operation IActionResult.
+  - Acceptance criteria:
+    - AC1: The AnimalDetailsController SHALL expose the operation IActionResult.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-provide-animal-repositor-3cd56f99**: WHEN a caller invokes an operation of AnimalRepository, the AnimalRepository SHALL provide the operations GetAnimals, GetAnimalById, AddNewAnimal, UpdateAnimal and DeleteAnimal (+1 more).
+  - Acceptance criteria:
+    - AC1: The AnimalRepository SHALL implement IAnimalRepository.
+    - AC2: The AnimalRepository SHALL expose the operations GetAnimals, GetAnimalById, AddNewAnimal, UpdateAnimal and DeleteAnimal (+1 more).
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-provide-catalog-controll-d4ff124a**: WHEN a caller invokes an operation of CatalogController, the CatalogController SHALL provide the operation IActionResult.
+  - Acceptance criteria:
+    - AC1: The CatalogController SHALL expose the operation IActionResult.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-provide-category-capabil-cd726358**: WHEN a caller invokes an operation of Category, the Category SHALL hold the Id, Name and Animals values.
+  - Acceptance criteria:
+    - AC1: The Category SHALL expose the properties Id, Name and Animals.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-provide-category-reposit-3f3c392c**: WHEN a caller invokes an operation of CategoryRepository, the CategoryRepository SHALL provide the operations GetCategories and GetAnimalsByCategory.
+  - Acceptance criteria:
+    - AC1: The CategoryRepository SHALL implement ICategoryRepository.
+    - AC2: The CategoryRepository SHALL expose the operations GetCategories and GetAnimalsByCategory.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-provide-comment-capabili-7daf62ad**: WHEN a caller invokes an operation of Comment, the Comment SHALL hold the Id, CommentText, AnimalId and Animal values.
+  - Acceptance criteria:
+    - AC1: The Comment SHALL expose the properties Id, CommentText, AnimalId and Animal.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-provide-comment-reposito-48c5e541**: WHEN a caller invokes an operation of CommentRepository, the CommentRepository SHALL provide the operations AddComment and IsCommentExist.
+  - Acceptance criteria:
+    - AC1: The CommentRepository SHALL implement ICommentRepository.
+    - AC2: The CommentRepository SHALL expose the operations AddComment and IsCommentExist.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-provide-create-role-view-dbd6fabd**: WHEN a caller invokes an operation of CreateRoleViewModel, the CreateRoleViewModel SHALL hold the RoleName value.
+  - Acceptance criteria:
+    - AC1: The CreateRoleViewModel SHALL expose the property RoleName.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-provide-edit-role-view-m-2e7c32a2**: WHEN a caller invokes an operation of EditRoleViewModel, the EditRoleViewModel SHALL hold the Id, RoleName and Users values.
+  - Acceptance criteria:
+    - AC1: The EditRoleViewModel SHALL expose the properties Id, RoleName and Users.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-provide-edit-user-view-m-3151b7f3**: WHEN a caller invokes an operation of EditUserViewModel, the EditUserViewModel SHALL hold the Id, UserName, Email, Claims and Roles values.
+  - Acceptance criteria:
+    - AC1: The EditUserViewModel SHALL expose the properties Id, UserName, Email, Claims and Roles.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-provide-error-controller-9a980c2e**: WHEN a caller invokes an operation of ErrorController, the ErrorController SHALL provide the operation IActionResult.
+  - Acceptance criteria:
+    - AC1: The ErrorController SHALL expose the operation IActionResult.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-provide-home-controller-b2ffcd8e**: WHEN a caller invokes an operation of HomeController, the HomeController SHALL provide the operation IActionResult.
+  - Acceptance criteria:
+    - AC1: The HomeController SHALL expose the operation IActionResult.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-provide-login-view-model-ec85af4c**: WHEN a caller invokes an operation of LoginViewModel, the LoginViewModel SHALL hold the Email, Password and RememberMe values.
+  - Acceptance criteria:
+    - AC1: The LoginViewModel SHALL expose the properties Email, Password and RememberMe.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-provide-pet-shop-context-753a6876**: WHEN a caller invokes an operation of PetShopContext, the PetShopContext SHALL provide the operation OnModelCreating.
+  - Acceptance criteria:
+    - AC1: The PetShopContext SHALL expose the operation OnModelCreating.
+    - AC2: The PetShopContext SHALL expose the properties Categories, Animals and Comments.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-provide-register-view-mo-6b971572**: WHEN a caller invokes an operation of RegisterViewModel, the RegisterViewModel SHALL hold the Email, Password and ConfirmPassword values.
+  - Acceptance criteria:
+    - AC1: The RegisterViewModel SHALL expose the properties Email, Password and ConfirmPassword.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-provide-user-role-view-m-0c328a7d**: WHEN a caller invokes an operation of UserRoleViewModel, the UserRoleViewModel SHALL hold the UserId, UserName and IsSelected values.
+  - Acceptance criteria:
+    - AC1: The UserRoleViewModel SHALL expose the properties UserId, UserName and IsSelected.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
+- **FR-provide-user-roles-view-c89f8557**: WHEN a caller invokes an operation of UserRolesViewModel, the UserRolesViewModel SHALL hold the RoleId, RoleName and IsSelected values.
+  - Acceptance criteria:
+    - AC1: The UserRolesViewModel SHALL expose the properties RoleId, RoleName and IsSelected.
+  - Verdict: satisfied (evidence: unchanged)
+  - Reasoning: The implementing code did not change between the pre- and post-upgrade codebase, so the behaviour is preserved by construction.
+  - Caveat: Not executed at runtime; rests on the implementing location being unchanged, not on a passing test.
