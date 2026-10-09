@@ -126,8 +126,8 @@ namespace PetShopWeb.Controllers
             var model = new EditUserViewModel
             {
                 Id = id,
-                Email = user.Email,
-                UserName = user.UserName,
+                Email = user.Email ?? string.Empty,
+                UserName = user.UserName ?? string.Empty,
                 Claims = userClaims.Select(c => c.Value).ToList(),
                 Roles = userRoles.ToList()
             };
@@ -214,17 +214,18 @@ namespace PetShopWeb.Controllers
         public async Task<IActionResult> EditRole(string id)
         {
             var role = await _roleManager.FindByIdAsync(id);
-            if (role is null)
+            string? roleName = role?.Name;
+            if (roleName is null)
                 return View(nameof(RolesManager));
 
             var editModel = new EditRoleViewModel
             {
                 Id = id,
-                RoleName = role.Name
+                RoleName = roleName
             };
             foreach (var user in _userManager.Users.ToList())
-                if (await _userManager.IsInRoleAsync(user, role.Name))
-                    editModel.Users!.Add(user.UserName);
+                if (await _userManager.IsInRoleAsync(user, roleName))
+                    editModel.Users.Add(user.UserName ?? string.Empty);
 
             return View(editModel);
         }
@@ -276,7 +277,8 @@ namespace PetShopWeb.Controllers
         {
             ViewBag.roleId = roleId;
             var role = await _roleManager.FindByIdAsync(roleId);
-            if (role is null)
+            string? roleName = role?.Name;
+            if (roleName is null)
             {
                 ViewBag.ErrorMessage = $"Role with Id - {roleId} hasn't been found";
                 return NotFound();
@@ -288,9 +290,9 @@ namespace PetShopWeb.Controllers
                 var userRoleViewModel = new UserRoleViewModel()
                 {
                     UserId = user.Id,
-                    UserName = user.UserName
+                    UserName = user.UserName ?? string.Empty
                 };
-                userRoleViewModel.IsSelected = await _userManager.IsInRoleAsync(user, role.Name);
+                userRoleViewModel.IsSelected = await _userManager.IsInRoleAsync(user, roleName);
                 model.Add(userRoleViewModel);
             }
             return View(model);
@@ -300,8 +302,9 @@ namespace PetShopWeb.Controllers
         public async Task<IActionResult> EditUsersInRole(List<UserRoleViewModel> model, string roleId)
         {
             var role = await _roleManager.FindByIdAsync(roleId);
+            string? roleName = role?.Name;
 
-            if (role is null)
+            if (roleName is null)
             {
                 ViewBag.ErrorMessage = $"Role with id - {roleId} hasn't been found";
                 return NotFound();
@@ -310,12 +313,15 @@ namespace PetShopWeb.Controllers
             for (int i = 0; i < model.Count; i++)
             {
                 var user = await _userManager.FindByIdAsync(model[i].UserId);
-                IdentityResult? result;
-                if (model[i].IsSelected && !await _userManager.IsInRoleAsync(user, role.Name))
+                if (user is null)
+                    continue;
 
-                    result = await _userManager.AddToRoleAsync(user, role.Name);
-                else if (!model[i].IsSelected && await _userManager.IsInRoleAsync(user, role.Name))
-                    result = await _userManager.RemoveFromRoleAsync(user, role.Name);
+                IdentityResult result;
+                if (model[i].IsSelected && !await _userManager.IsInRoleAsync(user, roleName))
+
+                    result = await _userManager.AddToRoleAsync(user, roleName);
+                else if (!model[i].IsSelected && await _userManager.IsInRoleAsync(user, roleName))
+                    result = await _userManager.RemoveFromRoleAsync(user, roleName);
                 else
                     continue;
 
@@ -344,12 +350,16 @@ namespace PetShopWeb.Controllers
             var model = new List<UserRolesViewModel>();
             foreach (var role in _roleManager.Roles.ToList())
             {
+                string? roleName = role.Name;
+                if (roleName is null)
+                    continue;
+
                 var userRolesModel = new UserRolesViewModel
                 {
                     RoleId = role.Id,
-                    RoleName = role.Name
+                    RoleName = roleName
                 };
-                userRolesModel.IsSelected = await _userManager.IsInRoleAsync(user, role.Name);
+                userRolesModel.IsSelected = await _userManager.IsInRoleAsync(user, roleName);
                 model.Add(userRolesModel);
             }
 
