@@ -8,7 +8,6 @@ services:
     depends_on:
       - db
     image: yarins2000/petshopapp:1.0
-    ports: 
-        - "3000:80" 
-        - "3001:433"
+    ports:
+        - "3000:8080"
     restart: always
