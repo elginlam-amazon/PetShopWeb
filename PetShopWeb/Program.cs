@@ -14,7 +14,8 @@ builder.Services.AddScoped<ICommentRepository, CommentRepository>();
 builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
 builder.Services.AddScoped<IAccountRepository, AccountRepository>();
 
-string connectionString = builder.Configuration["ConnectionStrings:DefaultConnection"];
+string connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' has not been configured.");
 builder.Services.AddDbContext<PetShopContext>(options => options.UseLazyLoadingProxies().UseSqlServer(connectionString));
 builder.Services.AddIdentity<IdentityUser, IdentityRole>(options =>
 {
@@ -32,9 +33,10 @@ using (var scope = app.Services.CreateScope())
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
-    var adminRole = new IdentityRole("admin");
+    const string adminRoleName = "admin";
+
     if(!ctx.Roles.Any())
-        roleManager.CreateAsync(adminRole).GetAwaiter().GetResult();
+        roleManager.CreateAsync(new IdentityRole(adminRoleName)).GetAwaiter().GetResult();
 
     if(!ctx.Users.Any(u => u.UserName == "Admin"))
     {
@@ -44,7 +46,8 @@ using (var scope = app.Services.CreateScope())
             Email = "admin@admin.com"
         };
         var result = userManager.CreateAsync(adminUser, "Admin123").GetAwaiter().GetResult();
-        userManager.AddToRoleAsync(adminUser, adminRole.Name).GetAwaiter().GetResult();
+        if (result.Succeeded)
+            userManager.AddToRoleAsync(adminUser, adminRoleName).GetAwaiter().GetResult();
     }
 }
 
@@ -59,8 +62,6 @@ app.UseRouting();
 
 app.UseAuthorization();
 
-app.UseEndpoints(endpoints =>
-{
-    endpoints.MapControllerRoute("default", "{controller=Home}/{action=HomePage}/{id?}");
-});
+app.MapControllerRoute("default", "{controller=Home}/{action=HomePage}/{id?}");
+
 app.Run();
