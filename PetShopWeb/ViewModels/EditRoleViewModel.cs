@@ -1,5 +1,4 @@
 ﻿using System.ComponentModel.DataAnnotations;
-using System.Security;
 
 namespace PetShopWeb.ViewModels
 {
@@ -10,11 +9,6 @@ namespace PetShopWeb.ViewModels
         [Required(ErrorMessage = "Role Name is required")]
         [Display(Name = "Role name")]
         public string? RoleName { get; set; }
-        public List<string>? Users { get; set; }
-
-        public EditRoleViewModel()
-        {
-            Users = new();
-        }
+        public List<string> Users { get; set; } = new();
     }
 }
