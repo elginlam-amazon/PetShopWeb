@@ -10,13 +10,7 @@ namespace PetShopWeb.ViewModels
         [Required]
         [EmailAddress]
         public string? Email { get; set; }
-        public List<string>? Claims { get; set; }
-        public List<string>? Roles { get; set; }
-
-        public EditUserViewModel()
-        {
-            Claims = new List<string>();
-            Roles = new List<string>();
-        }
+        public List<string> Claims { get; set; } = new();
+        public List<string> Roles { get; set; } = new();
     }
 }
