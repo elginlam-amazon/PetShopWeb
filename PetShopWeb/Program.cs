@@ -14,7 +14,7 @@ builder.Services.AddScoped<ICommentRepository, CommentRepository>();
 builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
 builder.Services.AddScoped<IAccountRepository, AccountRepository>();
 
-string connectionString = builder.Configuration["ConnectionStrings:DefaultConnection"];
+string? connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<PetShopContext>(options => options.UseLazyLoadingProxies().UseSqlServer(connectionString));
 builder.Services.AddIdentity<IdentityUser, IdentityRole>(options =>
 {
@@ -44,7 +44,7 @@ using (var scope = app.Services.CreateScope())
             Email = "admin@admin.com"
         };
         var result = userManager.CreateAsync(adminUser, "Admin123").GetAwaiter().GetResult();
-        userManager.AddToRoleAsync(adminUser, adminRole.Name).GetAwaiter().GetResult();
+        userManager.AddToRoleAsync(adminUser, adminRole.Name!).GetAwaiter().GetResult();
     }
 }
 
@@ -59,8 +59,5 @@ app.UseRouting();
 
 app.UseAuthorization();
 
-app.UseEndpoints(endpoints =>
-{
-    endpoints.MapControllerRoute("default", "{controller=Home}/{action=HomePage}/{id?}");
-});
+app.MapControllerRoute("default", "{controller=Home}/{action=HomePage}/{id?}");
 app.Run();
