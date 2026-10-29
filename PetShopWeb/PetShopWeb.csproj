@@ -1,11 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
-
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
-
   <ItemGroup>
     <Content Remove="C:\Users\PC\.nuget\packages\bootstrap\5.2.2\contentFiles\any\any\wwwroot\css\bootstrap-grid.css" />
     <Content Remove="C:\Users\PC\.nuget\packages\bootstrap\5.2.2\contentFiles\any\any\wwwroot\css\bootstrap-grid.css.map" />
@@ -52,20 +50,25 @@
     <Content Remove="C:\Users\PC\.nuget\packages\bootstrap\5.2.2\contentFiles\any\any\wwwroot\js\bootstrap.min.js" />
     <Content Remove="C:\Users\PC\.nuget\packages\bootstrap\5.2.2\contentFiles\any\any\wwwroot\js\bootstrap.min.js.map" />
   </ItemGroup>
-
   <ItemGroup>
     <Folder Include="wwwroot\photos\" />
   </ItemGroup>
-
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="6.0.11" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Proxies" Version="7.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="7.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="6.0.11">
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.14" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Proxies" Version="10.0.14" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.14" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.14">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="6.0.10" />
+    <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="10.0.2" />
   </ItemGroup>
-
+  <!-- Direct pins for vulnerable transitive dependencies (NU1901/NU1902/NU1903). -->
+  <ItemGroup>
+    <!-- GHSA-2fmv-rv2c-59x7, GHSA-846f-f764-76mx: via Microsoft.Data.SqlClient and scaffolding packages -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.14" />
+    <!-- GHSA-g4vj-cjjj-v7hg: via Microsoft.VisualStudio.Web.CodeGeneration.Design; 6.12.5 is the patched release of the 6.12 line -->
+    <PackageReference Include="NuGet.Packaging" Version="6.12.5" />
+    <PackageReference Include="NuGet.Protocol" Version="6.12.5" />
+  </ItemGroup>
 </Project>
