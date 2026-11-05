@@ -14,7 +14,8 @@ builder.Services.AddScoped<ICommentRepository, CommentRepository>();
 builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
 builder.Services.AddScoped<IAccountRepository, AccountRepository>();
 
-string connectionString = builder.Configuration["ConnectionStrings:DefaultConnection"];
+string connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
 builder.Services.AddDbContext<PetShopContext>(options => options.UseLazyLoadingProxies().UseSqlServer(connectionString));
 builder.Services.AddIdentity<IdentityUser, IdentityRole>(options =>
 {
@@ -26,25 +27,28 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var ctx = scope.ServiceProvider.GetRequiredService<PetShopContext>();
-    ctx.Database.EnsureDeleted();
     ctx.Database.EnsureCreated();
 
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
-    var adminRole = new IdentityRole("admin");
-    if(!ctx.Roles.Any())
-        roleManager.CreateAsync(adminRole).GetAwaiter().GetResult();
+    const string adminRoleName = "admin";
+    const string adminUserName = "admin@admin.com";
 
-    if(!ctx.Users.Any(u => u.UserName == "Admin"))
+    if(!ctx.Roles.Any())
+        roleManager.CreateAsync(new IdentityRole(adminRoleName)).GetAwaiter().GetResult();
+
+    var seedAdminPassword = builder.Configuration["SeedAdmin:Password"];
+    if (!ctx.Users.Any(u => u.UserName == adminUserName) && !string.IsNullOrEmpty(seedAdminPassword))
     {
         var adminUser = new IdentityUser()
         {
-            UserName = "admin@admin.com",
-            Email = "admin@admin.com"
+            UserName = adminUserName,
+            Email = adminUserName
         };
-        var result = userManager.CreateAsync(adminUser, "Admin123").GetAwaiter().GetResult();
-        userManager.AddToRoleAsync(adminUser, adminRole.Name).GetAwaiter().GetResult();
+        var result = userManager.CreateAsync(adminUser, seedAdminPassword).GetAwaiter().GetResult();
+        if (result.Succeeded)
+            userManager.AddToRoleAsync(adminUser, adminRoleName).GetAwaiter().GetResult();
     }
 }
 
@@ -59,8 +63,6 @@ app.UseRouting();
 
 app.UseAuthorization();
 
-app.UseEndpoints(endpoints =>
-{
-    endpoints.MapControllerRoute("default", "{controller=Home}/{action=HomePage}/{id?}");
-});
+app.MapControllerRoute("default", "{controller=Home}/{action=HomePage}/{id?}");
+
 app.Run();
