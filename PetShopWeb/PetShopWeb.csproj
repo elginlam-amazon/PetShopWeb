@@ -24,4 +24,11 @@
     </PackageReference>
   </ItemGroup>
 
+  <!-- Pin patched versions of vulnerable transitive dependencies pulled in by CodeGeneration.Design -->
+  <ItemGroup>
+    <PackageReference Include="NuGet.Packaging" Version="6.12.5" PrivateAssets="all" />
+    <PackageReference Include="NuGet.Protocol" Version="6.12.5" PrivateAssets="all" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.14" />
+  </ItemGroup>
+
 </Project>
