@@ -16,7 +16,10 @@ builder.Services.AddScoped<IAccountRepository, AccountRepository>();
 
 string connectionString = builder.Configuration["ConnectionStrings:DefaultConnection"];
 builder.Services.AddDbContext<PetShopContext>(options => options.UseLazyLoadingProxies().UseSqlServer(connectionString));
-builder.Services.AddIdentity<IdentityUser, IdentityRole>().AddEntityFrameworkStores<PetShopContext>();
+builder.Services.AddIdentity<IdentityUser, IdentityRole>(options =>
+{
+    options.Password.RequireNonAlphanumeric = false;
+}).AddEntityFrameworkStores<PetShopContext>();
 
 var app = builder.Build();
 
@@ -49,7 +52,15 @@ if (app.Environment.IsDevelopment())
                 Email = "admin@admin.com"
             };
             var result = userManager.CreateAsync(adminUser, seedPassword).GetAwaiter().GetResult();
-            userManager.AddToRoleAsync(adminUser, adminRole.Name).GetAwaiter().GetResult();
+            if (result.Succeeded)
+            {
+                userManager.AddToRoleAsync(adminUser, adminRole.Name!).GetAwaiter().GetResult();
+            }
+            else
+            {
+                app.Logger.LogWarning("The development admin user was not created: {Errors}",
+                    string.Join("; ", result.Errors.Select(e => e.Description)));
+            }
         }
     }
 }
