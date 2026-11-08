@@ -19,7 +19,7 @@ namespace PetShopWeb.Attributes
         }
         public override bool IsValid(object? value)
         {
-            string path;
+            string? path;
             if (value is IFormFile file)
                 path = file.FileName;
             else

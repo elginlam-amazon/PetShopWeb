@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using PetShopWeb.Models;
-using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.AspNetCore.Identity;
 
 namespace PetShopWeb.Data
@@ -9,13 +8,13 @@ namespace PetShopWeb.Data
     public class PetShopContext : IdentityDbContext
     {
 
-        public PetShopContext(DbContextOptions options) : base(options)
+        public PetShopContext(DbContextOptions<PetShopContext> options) : base(options)
         {
         }
 
-        public DbSet<Category>? Categories { get; set; }
-        public DbSet<Animal>? Animals { get; set; }
-        public DbSet<Comment>? Comments { get; set; }
+        public DbSet<Category> Categories { get; set; } = null!;
+        public DbSet<Animal> Animals { get; set; } = null!;
+        public DbSet<Comment> Comments { get; set; } = null!;
 
 
 

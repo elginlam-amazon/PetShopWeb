@@ -14,25 +14,25 @@ namespace PetShopWeb.Repositories.AnimalRepository
 
         public IEnumerable<Animal> GetAnimals()
         {
-            return context.Animals!;
+            return context.Animals;
         }
 
         public Animal? GetAnimalById(int id)
         {
-            return context.Animals!.Find(id);
+            return context.Animals.Find(id);
         }
 
         public void AddNewAnimal(Animal newAnimal)
         {
             if (newAnimal is not null)
             {
-                context.Animals!.Add(newAnimal);
+                context.Animals.Add(newAnimal);
                 context.SaveChanges();
             }
         }
         public void UpdateAnimal(int id, Animal updatedAnimal)
         {
-            var animal = context.Animals!.Find(id);
+            var animal = context.Animals.Find(id);
             if (animal is not null)
             {
                 animal.ImagePath = "~/photos/" + updatedAnimal.ImagePath;
@@ -44,17 +44,17 @@ namespace PetShopWeb.Repositories.AnimalRepository
         }
         public void DeleteAnimal(int id)
         {
-            var animal = context.Animals!.Find(id);
+            var animal = context.Animals.Find(id);
             if (animal is not null)
             {
-                context.Animals!.Remove(animal);
+                context.Animals.Remove(animal);
                 context.SaveChanges();
             }
         }
 
         public IEnumerable<Animal> GetMostReviewedAnimals(int animalsCount)
         {
-            return context.Animals!.OrderByDescending(a => a.Comments!.Count).Take(animalsCount).ToList();
+            return context.Animals.OrderByDescending(a => a.Comments!.Count).Take(animalsCount).ToList();
         }
     }
 }

@@ -19,12 +19,12 @@ namespace PetShopWeb.Repositories.CommentRepository
                 AnimalId = animalId,
                 CommentText = commentText
             };
-            context.Comments!.Add(comment);
+            context.Comments.Add(comment);
             context.SaveChanges();
         }
         public bool IsCommentExist(int animalId, string commentText)
         {
-            var animal = context.Animals!.Find(animalId);
+            var animal = context.Animals.Find(animalId);
             if (animal is not null)
                 return animal.Comments!.Any(c => c.CommentText == commentText);
             return false;

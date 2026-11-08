@@ -98,6 +98,9 @@ namespace PetShopWeb.Controllers
 
         [AcceptVerbs(new[] { "Get", "Post" })]
         [AllowAnonymous]
+        // Read-only remote-validation endpoint: it must keep answering both GET and POST, so it
+        // opts out of the global AutoValidateAntiforgeryToken filter registered in Program.cs.
+        [IgnoreAntiforgeryToken]
         public async Task<IActionResult> IsEmailInUse(string email)
         {
             var user = await _userManager.FindByEmailAsync(email);

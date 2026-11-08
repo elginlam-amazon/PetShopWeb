@@ -13,15 +13,15 @@ namespace PetShopWeb.Repositories.CategoryRepository
         }
         public IEnumerable<Category> GetCategories()
         {
-            return context.Categories!;
+            return context.Categories;
         }
 
         public IEnumerable<Animal> GetAnimalsByCategory(int categoryId)
         {
-            var category = context.Categories!.Find(categoryId);
+            var category = context.Categories.Find(categoryId);
             if (category is not null)
                 return category.Animals!;
-            return context.Animals!;
+            return context.Animals;
         }
     }
 }
