@@ -129,8 +129,8 @@ namespace PetShopWeb.Controllers
             var model = new EditUserViewModel
             {
                 Id = id,
-                Email = user.Email,
-                UserName = user.UserName,
+                Email = user.Email!,
+                UserName = user.UserName!,
                 Claims = userClaims.Select(c => c.Value).ToList(),
                 Roles = userRoles.ToList()
             };
@@ -141,7 +141,8 @@ namespace PetShopWeb.Controllers
         [HttpPost]
         public async Task<IActionResult> EditUser(EditUserViewModel model)
         {
-            var user = await _userManager.FindByIdAsync(model.Id);
+            // Id is a hidden field always present in the form; use ! since we handle null from FindByIdAsync below.
+            var user = await _userManager.FindByIdAsync(model.Id!);
             if (user is null)
             {
                 ViewBag.ErrorMessage = $"User with Id - {model.Id} hasn't been found";
@@ -223,11 +224,11 @@ namespace PetShopWeb.Controllers
             var editModel = new EditRoleViewModel
             {
                 Id = id,
-                RoleName = role.Name
+                RoleName = role.Name!
             };
             foreach (var user in _userManager.Users.ToList())
-                if (await _userManager.IsInRoleAsync(user, role.Name))
-                    editModel.Users!.Add(user.UserName);
+                if (await _userManager.IsInRoleAsync(user, role.Name!))
+                    editModel.Users.Add(user.UserName!);
 
             return View(editModel);
         }
@@ -235,6 +236,9 @@ namespace PetShopWeb.Controllers
         [HttpPost]
         public async Task<IActionResult> EditRole(EditRoleViewModel editModel)
         {
+            if (editModel.Id is null)
+                return View(nameof(RolesManager));
+
             var role = await _roleManager.FindByIdAsync(editModel.Id);
             if (role is null)
                 return View(nameof(RolesManager));
@@ -293,7 +297,7 @@ namespace PetShopWeb.Controllers
                     UserId = user.Id,
                     UserName = user.UserName
                 };
-                userRoleViewModel.IsSelected = await _userManager.IsInRoleAsync(user, role.Name);
+                userRoleViewModel.IsSelected = await _userManager.IsInRoleAsync(user, role.Name!);
                 model.Add(userRoleViewModel);
             }
             return View(model);
@@ -312,13 +316,14 @@ namespace PetShopWeb.Controllers
 
             for (int i = 0; i < model.Count; i++)
             {
-                var user = await _userManager.FindByIdAsync(model[i].UserId);
+                var user = await _userManager.FindByIdAsync(model[i].UserId!);
+                if (user is null) continue;
                 IdentityResult? result;
-                if (model[i].IsSelected && !await _userManager.IsInRoleAsync(user, role.Name))
+                if (model[i].IsSelected && !await _userManager.IsInRoleAsync(user, role.Name!))
 
-                    result = await _userManager.AddToRoleAsync(user, role.Name);
-                else if (!model[i].IsSelected && await _userManager.IsInRoleAsync(user, role.Name))
-                    result = await _userManager.RemoveFromRoleAsync(user, role.Name);
+                    result = await _userManager.AddToRoleAsync(user, role.Name!);
+                else if (!model[i].IsSelected && await _userManager.IsInRoleAsync(user, role.Name!))
+                    result = await _userManager.RemoveFromRoleAsync(user, role.Name!);
                 else
                     continue;
 
@@ -350,9 +355,9 @@ namespace PetShopWeb.Controllers
                 var userRolesModel = new UserRolesViewModel
                 {
                     RoleId = role.Id,
-                    RoleName = role.Name
+                    RoleName = role.Name!
                 };
-                userRolesModel.IsSelected = await _userManager.IsInRoleAsync(user, role.Name);
+                userRolesModel.IsSelected = await _userManager.IsInRoleAsync(user, role.Name!);
                 model.Add(userRolesModel);
             }
 
