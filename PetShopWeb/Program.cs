@@ -14,8 +14,12 @@ builder.Services.AddScoped<ICommentRepository, CommentRepository>();
 builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
 builder.Services.AddScoped<IAccountRepository, AccountRepository>();
 
-string connectionString = builder.Configuration["ConnectionStrings:DefaultConnection"];
-builder.Services.AddDbContext<PetShopContext>(options => options.UseLazyLoadingProxies().UseSqlServer(connectionString));
+string connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+
+builder.Services.AddDbContext<PetShopContext>(options =>
+    options.UseLazyLoadingProxies().UseSqlServer(connectionString));
+
 builder.Services.AddIdentity<IdentityUser, IdentityRole>(options =>
 {
     options.Password.RequireNonAlphanumeric = false;
@@ -33,18 +37,18 @@ using (var scope = app.Services.CreateScope())
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
     var adminRole = new IdentityRole("admin");
-    if(!ctx.Roles.Any())
-        roleManager.CreateAsync(adminRole).GetAwaiter().GetResult();
+    if (!ctx.Roles.Any())
+        await roleManager.CreateAsync(adminRole);
 
-    if(!ctx.Users.Any(u => u.UserName == "Admin"))
+    if (!ctx.Users.Any(u => u.UserName == "Admin"))
     {
-        var adminUser = new IdentityUser()
+        var adminUser = new IdentityUser
         {
             UserName = "admin@admin.com",
             Email = "admin@admin.com"
         };
-        var result = userManager.CreateAsync(adminUser, "Admin123").GetAwaiter().GetResult();
-        userManager.AddToRoleAsync(adminUser, adminRole.Name).GetAwaiter().GetResult();
+        await userManager.CreateAsync(adminUser, "Admin123");
+        await userManager.AddToRoleAsync(adminUser, adminRole.Name!);
     }
 }
 
@@ -59,8 +63,8 @@ app.UseRouting();
 
 app.UseAuthorization();
 
-app.UseEndpoints(endpoints =>
-{
-    endpoints.MapControllerRoute("default", "{controller=Home}/{action=HomePage}/{id?}");
-});
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=HomePage}/{id?}");
+
 app.Run();
