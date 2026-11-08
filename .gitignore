@@ -360,4 +360,11 @@ MigrationBackup/
 .ionide/
 
 # Fody - auto-generated XML schema
-FodyWeavers.xsd
+FodyWeavers.xsdchecklist-*.md
+checklist-planner-*.md
+checklist-convert-*.md
+.artifacts/
+.migration-artifacts/
+progress.json
+migration-summary.md
+nextsteps.md
