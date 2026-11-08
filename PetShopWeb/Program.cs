@@ -16,15 +16,13 @@ builder.Services.AddScoped<IAccountRepository, AccountRepository>();
 
 string connectionString = builder.Configuration["ConnectionStrings:DefaultConnection"];
 builder.Services.AddDbContext<PetShopContext>(options => options.UseLazyLoadingProxies().UseSqlServer(connectionString));
-builder.Services.AddIdentity<IdentityUser, IdentityRole>(options =>
-{
-    options.Password.RequireNonAlphanumeric = false;
-}).AddEntityFrameworkStores<PetShopContext>();
+builder.Services.AddIdentity<IdentityUser, IdentityRole>().AddEntityFrameworkStores<PetShopContext>();
 
 var app = builder.Build();
 
-using (var scope = app.Services.CreateScope())
+if (app.Environment.IsDevelopment())
 {
+    using var scope = app.Services.CreateScope();
     var ctx = scope.ServiceProvider.GetRequiredService<PetShopContext>();
     ctx.Database.EnsureDeleted();
     ctx.Database.EnsureCreated();
@@ -33,18 +31,26 @@ using (var scope = app.Services.CreateScope())
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
     var adminRole = new IdentityRole("admin");
-    if(!ctx.Roles.Any())
+    if (!ctx.Roles.Any())
         roleManager.CreateAsync(adminRole).GetAwaiter().GetResult();
 
-    if(!ctx.Users.Any(u => u.UserName == "Admin"))
+    var seedPassword = builder.Configuration["SeedAdmin:Password"];
+    if (!ctx.Users.Any(u => u.UserName == "Admin"))
     {
-        var adminUser = new IdentityUser()
+        if (string.IsNullOrEmpty(seedPassword))
         {
-            UserName = "admin@admin.com",
-            Email = "admin@admin.com"
-        };
-        var result = userManager.CreateAsync(adminUser, "Admin123").GetAwaiter().GetResult();
-        userManager.AddToRoleAsync(adminUser, adminRole.Name).GetAwaiter().GetResult();
+            app.Logger.LogWarning("SeedAdmin:Password is not configured; the development admin user was not created.");
+        }
+        else
+        {
+            var adminUser = new IdentityUser()
+            {
+                UserName = "admin@admin.com",
+                Email = "admin@admin.com"
+            };
+            var result = userManager.CreateAsync(adminUser, seedPassword).GetAwaiter().GetResult();
+            userManager.AddToRoleAsync(adminUser, adminRole.Name).GetAwaiter().GetResult();
+        }
     }
 }
 
@@ -53,14 +59,12 @@ if (!app.Environment.IsDevelopment())
 
 app.UseStaticFiles();
 
-app.UseAuthentication();
-
 app.UseRouting();
+
+app.UseAuthentication();
 
 app.UseAuthorization();
 
-app.UseEndpoints(endpoints =>
-{
-    endpoints.MapControllerRoute("default", "{controller=Home}/{action=HomePage}/{id?}");
-});
+app.MapControllerRoute("default", "{controller=Home}/{action=HomePage}/{id?}");
+
 app.Run();
