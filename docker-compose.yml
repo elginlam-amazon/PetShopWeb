@@ -4,11 +4,16 @@ services:
   db:
     image: yarins2000/petshopdb:1.0
     restart: always
+
   app:
     depends_on:
       - db
-    image: yarins2000/petshopapp:1.0
-    ports: 
-        - "3000:80" 
-        - "3001:433"
+    build: .
+    ports:
+      - "3000:80"
+      - "3001:443"
     restart: always
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=Server=tcp:db,1433;Initial Catalog=PetShop;Persist Security Info=False;User ID=sa;Password=Qwe12345!;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=True;Connection Timeout=30;
+      - Seed__AdminPassword=Admin123
